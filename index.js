@@ -1,11 +1,11 @@
 const express = require("express")
 const app = express()
 app.use(express.json())
-
+ 
 const accounts = JSON.parse(process.env.ACCOUNTS || '{}')
 const tokens = {}
 const bindedIPs = {}
-
+ 
 // 管理面板
 app.get("/admin", (req, res) => {
     res.send(`
@@ -26,18 +26,18 @@ app.get("/admin", (req, res) => {
 </head>
 <body>
     <h2>管理面板</h2>
-
+ 
     <h3>解绑IP</h3>
     <input id="unbind_key" type="password" placeholder="管理员密钥">
     <input id="unbind_user" placeholder="账号名">
     <button onclick="unbind()">解绑</button>
-
+ 
     <h3>查看绑定列表</h3>
     <input id="list_key" type="password" placeholder="管理员密钥">
     <button onclick="listAll()">查看</button>
-
+ 
     <div class="result" id="result"></div>
-
+ 
     <script>
         async function unbind() {
             const res = await fetch("/api/unbind", {
@@ -51,7 +51,7 @@ app.get("/admin", (req, res) => {
             const data = await res.json()
             document.getElementById("result").innerText = data.message
         }
-
+ 
         async function listAll() {
             const res = await fetch("/api/list", {
                 method: "POST",
@@ -82,18 +82,18 @@ app.get("/admin", (req, res) => {
 </html>
     `)
 })
-
+ 
 app.post("/api/login", (req, res) => {
     const { user, pass } = req.body
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress
-
+    const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress.replace('::ffff:', '')
+ 
     console.log(`[登录] 账号: ${user} | IP: ${ip} | 时间: ${new Date().toLocaleString('zh-CN')}`)
-
+ 
     if (!accounts[user] || accounts[user] !== pass) {
         console.log(`[失败] 账号: ${user} | IP: ${ip} | 原因: 密码错误`)
         return res.json({ success: false, message: "账号或密码错误" })
     }
-
+ 
     if (bindedIPs[user]) {
         if (bindedIPs[user] !== ip) {
             console.log(`[拦截] 账号: ${user} | IP: ${ip} | 原因: IP不匹配`)
@@ -103,23 +103,23 @@ app.post("/api/login", (req, res) => {
         bindedIPs[user] = ip
         console.log(`[绑定] 账号: ${user} | IP: ${ip}`)
     }
-
+ 
     const token = Math.random().toString(36).slice(2)
     tokens[token] = { user, ip }
     res.json({ success: true, token })
 })
-
+ 
 app.post("/api/verify", (req, res) => {
     const { token } = req.body
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress
+    const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress.replace('::ffff:', '')
     const data = tokens[token]
-
+ 
     if (!data) return res.json({ success: false, message: "token无效" })
     if (data.ip !== ip) return res.json({ success: false, message: "IP异常，请重新登录" })
-
+ 
     res.json({ success: true, user: data.user })
 })
-
+ 
 app.post("/api/unbind", (req, res) => {
     const { admin_key, user } = req.body
     if (admin_key !== process.env.ADMIN_KEY) {
@@ -135,7 +135,7 @@ app.post("/api/unbind", (req, res) => {
     }
     res.json({ success: true, message: user + " IP解绑成功" })
 })
-
+ 
 app.post("/api/list", (req, res) => {
     const { admin_key } = req.body
     if (admin_key !== process.env.ADMIN_KEY) {
@@ -143,6 +143,7 @@ app.post("/api/list", (req, res) => {
     }
     res.json({ success: true, data: bindedIPs })
 })
-
+ 
 const PORT = process.env.PORT || 3000
 app.listen(PORT)
+    
